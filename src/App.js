@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from "react";
+import socketio from "socket.io-client";
 import api from "./services/api";
 import "./App.css";
 
+const socket = socketio("http://localhost:3333");
 function App() {
-  const [count, setCount] = useState(0);
+  const [show, setShow] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [weight, setWeight] = useState(0);
+  const [description, setDescription] = useState("");
+  const [id, setId] = useState("");
+  const [showProduct, setShowProduct] = useState("");
+  const [showWeight, setShowWeight] = useState("");
+
   useEffect(() => {
     async function loadProducts() {
       const response = await api.get("/listproducts");
@@ -11,22 +20,42 @@ function App() {
     }
 
     loadProducts();
-  }, [count]);
-  const [products, setProducts] = useState([]);
-  const [weight, setWeight] = useState(0);
-  const [description, setDescription] = useState("");
-  const [productShow, setProductShow] = useState("");
+
+    socket.on("changeData", (data) => {
+      setProducts([...products, data]);
+    });
+  }, [products]);
+
   async function handleSubmit(e) {
     e.preventDefault();
 
-    const response = await api.post("/products", { weight, description });
-
-    console.log(response.data);
+    await api.post("/products", { weight, description });
 
     setWeight(0);
     setDescription("");
-    setCount(+1);
   }
+
+  async function del() {
+    const prod_id = id;
+
+    await api.delete(`/products/${prod_id}`);
+
+    setShow(false);
+  }
+
+  function onProductChange(e) {
+    const product = products.find((p) => p._id == e.target.value);
+    console.log(product);
+
+    const { description, weight } = product;
+
+    setShowProduct(description);
+    setShowWeight(weight);
+    setId(e.target.value);
+
+    setShow(true);
+  }
+
   return (
     <div className="App">
       <form onSubmit={handleSubmit}>
@@ -52,13 +81,10 @@ function App() {
         <br />
         <br />
         <label>Consultar Produto</label>
-        <select
-          className="slt"
-          onChange={(e) => setProductShow(e.target.value)}
-        >
+        <select className="slt" onChange={onProductChange}>
           <option>Escolha um produto</option>
           {products.map((prod) => (
-            <option key={prod._id} value={[prod.description, prod.weight]}>
+            <option key={prod._id} value={prod._id}>
               {prod.description}
             </option>
           ))}
@@ -69,11 +95,17 @@ function App() {
         <br />
         <br />
         <br />
-        {productShow !== "Escolha um produto" && productShow !== "" && (
-          <div>
-            <strong>{productShow} kg</strong>
-          </div>
-        )}
+        {showProduct !== "Escolha um produto" &&
+          showProduct !== "" &&
+          show === true && (
+            <div className="show">
+              <strong>{showProduct}</strong>
+              <strong>{showWeight} kg</strong>
+              <button className="btn" onClick={del}>
+                Deletar
+              </button>
+            </div>
+          )}
       </form>
     </div>
   );
